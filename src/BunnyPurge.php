@@ -3,6 +3,7 @@
 namespace Noo\CraftBunnyPurge;
 
 use Craft;
+use craft\elements\Asset;
 use craft\events\ReplaceAssetEvent;
 use craft\services\Assets;
 use yii\base\Event;
@@ -38,6 +39,26 @@ class BunnyPurge extends Module
         $this->registerEventListeners();
     }
 
+    /** @return string[] */
+    private function getAssetUrlsAcrossSites(int $assetId): array
+    {
+        $urls = [];
+
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            $url = Asset::find()
+                ->id($assetId)
+                ->siteId($site->id)
+                ->one()
+                ?->getUrl();
+
+            if ($url !== null) {
+                $urls[] = $url;
+            }
+        }
+
+        return array_unique($urls);
+    }
+
     private function registerEventListeners(): void
     {
         $volumes = $this->config['volumes'];
@@ -56,14 +77,14 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $url = $asset->getUrl();
+                $urls = $this->getAssetUrlsAcrossSites($asset->id);
 
-                if ($url === null) {
+                if (empty($urls)) {
                     return;
                 }
 
                 Craft::$app->getQueue()->push(new PurgeAssetUrlJob([
-                    'url' => $url,
+                    'urls' => $urls,
                 ]));
             },
         );
