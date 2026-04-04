@@ -3,7 +3,9 @@
 namespace Noo\CraftBunnyPurge;
 
 use Craft;
+use craft\base\Element;
 use craft\elements\Asset;
+use craft\events\ModelEvent;
 use craft\events\ReplaceAssetEvent;
 use craft\services\Assets;
 use yii\base\Event;
@@ -15,6 +17,9 @@ use yii\base\Module;
 class BunnyPurge extends Module
 {
     private array $config;
+
+    /** @var array<int, string[]> */
+    private array $pendingPurgeUrls = [];
 
     public static function getInstance(): static
     {
@@ -39,12 +44,25 @@ class BunnyPurge extends Module
         $this->registerEventListeners();
     }
 
+    private function queuePurge(array $urls): void
+    {
+        if (! empty($urls)) {
+            Craft::$app->getQueue()->push(new PurgeAssetUrlJob([
+                'urls' => $urls,
+            ]));
+        }
+    }
+
     /** @return string[] */
     private function getAssetUrlsAcrossSites(int $assetId): array
     {
         $urls = [];
+        $sitesService = Craft::$app->getSites();
+        $originalSite = $sitesService->getCurrentSite();
 
-        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+        foreach ($sitesService->getAllSites() as $site) {
+            $sitesService->setCurrentSite($site);
+
             $url = Asset::find()
                 ->id($assetId)
                 ->siteId($site->id)
@@ -55,6 +73,8 @@ class BunnyPurge extends Module
                 $urls[] = $url;
             }
         }
+
+        $sitesService->setCurrentSite($originalSite);
 
         return array_unique($urls);
     }
@@ -67,6 +87,7 @@ class BunnyPurge extends Module
             return;
         }
 
+        // Purge when asset file is replaced (same URL, new content)
         Event::on(
             Assets::class,
             Assets::EVENT_AFTER_REPLACE_ASSET,
@@ -77,15 +98,60 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $urls = $this->getAssetUrlsAcrossSites($asset->id);
+                $this->queuePurge($this->getAssetUrlsAcrossSites($asset->id));
+            },
+        );
 
-                if (empty($urls)) {
+        // Capture old URLs before save for rename/move detection
+        Event::on(
+            Asset::class,
+            Element::EVENT_BEFORE_SAVE,
+            function (ModelEvent $event) use ($volumes) {
+                /** @var Asset $asset */
+                $asset = $event->sender;
+
+                if ($event->isNew || ! in_array($asset->getVolume()->handle, $volumes)) {
                     return;
                 }
 
-                Craft::$app->getQueue()->push(new PurgeAssetUrlJob([
-                    'urls' => $urls,
-                ]));
+                $this->pendingPurgeUrls[$asset->id] = $this->getAssetUrlsAcrossSites($asset->id);
+            },
+        );
+
+        // After save, purge old URLs that are no longer valid (renamed/moved)
+        Event::on(
+            Asset::class,
+            Element::EVENT_AFTER_SAVE,
+            function (ModelEvent $event) {
+                /** @var Asset $asset */
+                $asset = $event->sender;
+
+                if (! isset($this->pendingPurgeUrls[$asset->id])) {
+                    return;
+                }
+
+                $oldUrls = $this->pendingPurgeUrls[$asset->id];
+                unset($this->pendingPurgeUrls[$asset->id]);
+
+                $staleUrls = array_values(array_diff($oldUrls, $this->getAssetUrlsAcrossSites($asset->id)));
+
+                $this->queuePurge($staleUrls);
+            },
+        );
+
+        // Purge URLs before asset is deleted
+        Event::on(
+            Asset::class,
+            Element::EVENT_BEFORE_DELETE,
+            function (ModelEvent $event) use ($volumes) {
+                /** @var Asset $asset */
+                $asset = $event->sender;
+
+                if (! in_array($asset->getVolume()->handle, $volumes)) {
+                    return;
+                }
+
+                $this->queuePurge($this->getAssetUrlsAcrossSites($asset->id));
             },
         );
     }
