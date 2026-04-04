@@ -28,6 +28,8 @@ class BunnyPurge extends Module
 
     public function init(): void
     {
+        Craft::setAlias('@Noo/CraftBunnyPurge', __DIR__);
+
         parent::init();
 
         $this->config = array_merge(
