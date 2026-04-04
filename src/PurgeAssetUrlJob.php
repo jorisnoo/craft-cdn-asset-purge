@@ -6,18 +6,15 @@ use craft\queue\BaseJob;
 
 class PurgeAssetUrlJob extends BaseJob
 {
-    /** @var string[] */
-    public array $urls;
+    public string $url;
 
     public function execute($queue): void
     {
-        BunnyPurge::getInstance()->purgeService->purgeUrls($this->urls);
+        BunnyPurge::getInstance()->purgeService->purgeUrls([$this->url]);
     }
 
     protected function defaultDescription(): ?string
     {
-        $count = count($this->urls);
-
-        return "Purging Bunny CDN cache for {$count} URL(s)";
+        return "Purging Bunny CDN cache for {$this->url}";
     }
 }

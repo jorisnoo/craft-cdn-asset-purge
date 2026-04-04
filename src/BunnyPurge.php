@@ -18,7 +18,7 @@ class BunnyPurge extends Module
 {
     private array $config;
 
-    /** @var array<int, string[]> */
+    /** @var array<int, string> */
     private array $pendingPurgeUrls = [];
 
     public static function getInstance(): static
@@ -44,64 +44,13 @@ class BunnyPurge extends Module
         $this->registerEventListeners();
     }
 
-    private function queuePurge(array $urls): void
+    private function queuePurge(?string $url): void
     {
-        if (! empty($urls)) {
+        if ($url !== null) {
             Craft::$app->getQueue()->push(new PurgeAssetUrlJob([
-                'urls' => $urls,
+                'url' => $url,
             ]));
         }
-    }
-
-    /** @return string[] */
-    private function getAssetUrlsAcrossSites(int $assetId): array
-    {
-        $url = Asset::find()->id($assetId)->one()?->getUrl();
-
-        if ($url === null) {
-            return [];
-        }
-
-        $path = parse_url($url, PHP_URL_PATH);
-
-        if (! $path) {
-            return [$url];
-        }
-
-        $urls = [];
-
-        foreach (Craft::$app->getSites()->getAllSites() as $site) {
-            $origin = $this->extractOrigin($site->getBaseUrl());
-
-            if ($origin !== null) {
-                $urls[] = $origin . $path;
-            }
-        }
-
-        return array_values(array_unique($urls));
-    }
-
-    private function extractOrigin(?string $url): ?string
-    {
-        if ($url === null) {
-            return null;
-        }
-
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        $host = parse_url($url, PHP_URL_HOST);
-
-        if (! $scheme || ! $host) {
-            return null;
-        }
-
-        $origin = $scheme . '://' . $host;
-        $port = parse_url($url, PHP_URL_PORT);
-
-        if ($port) {
-            $origin .= ':' . $port;
-        }
-
-        return $origin;
     }
 
     private function registerEventListeners(): void
@@ -123,11 +72,11 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $this->queuePurge($this->getAssetUrlsAcrossSites($asset->id));
+                $this->queuePurge($asset->getUrl());
             },
         );
 
-        // Capture old URLs before save for rename/move detection
+        // Capture old URL before save for rename/move detection
         Event::on(
             Asset::class,
             Element::EVENT_BEFORE_SAVE,
@@ -139,11 +88,11 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $this->pendingPurgeUrls[$asset->id] = $this->getAssetUrlsAcrossSites($asset->id);
+                $this->pendingPurgeUrls[$asset->id] = $asset->getUrl();
             },
         );
 
-        // After save, purge old URLs that are no longer valid (renamed/moved)
+        // After save, purge old URL if it changed (renamed/moved)
         Event::on(
             Asset::class,
             Element::EVENT_AFTER_SAVE,
@@ -155,16 +104,16 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $oldUrls = $this->pendingPurgeUrls[$asset->id];
+                $oldUrl = $this->pendingPurgeUrls[$asset->id];
                 unset($this->pendingPurgeUrls[$asset->id]);
 
-                $staleUrls = array_values(array_diff($oldUrls, $this->getAssetUrlsAcrossSites($asset->id)));
-
-                $this->queuePurge($staleUrls);
+                if ($oldUrl !== $asset->getUrl()) {
+                    $this->queuePurge($oldUrl);
+                }
             },
         );
 
-        // Purge URLs before asset is deleted
+        // Purge URL before asset is deleted
         Event::on(
             Asset::class,
             Element::EVENT_BEFORE_DELETE,
@@ -176,7 +125,7 @@ class BunnyPurge extends Module
                     return;
                 }
 
-                $this->queuePurge($this->getAssetUrlsAcrossSites($asset->id));
+                $this->queuePurge($asset->getUrl());
             },
         );
     }
