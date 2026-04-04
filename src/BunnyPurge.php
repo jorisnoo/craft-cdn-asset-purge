@@ -56,27 +56,52 @@ class BunnyPurge extends Module
     /** @return string[] */
     private function getAssetUrlsAcrossSites(int $assetId): array
     {
+        $url = Asset::find()->id($assetId)->one()?->getUrl();
+
+        if ($url === null) {
+            return [];
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! $path) {
+            return [$url];
+        }
+
         $urls = [];
-        $sitesService = Craft::$app->getSites();
-        $originalSite = $sitesService->getCurrentSite();
 
-        foreach ($sitesService->getAllSites() as $site) {
-            $sitesService->setCurrentSite($site);
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            $origin = $this->extractOrigin($site->getBaseUrl());
 
-            $url = Asset::find()
-                ->id($assetId)
-                ->siteId($site->id)
-                ->one()
-                ?->getUrl();
-
-            if ($url !== null) {
-                $urls[] = $url;
+            if ($origin !== null) {
+                $urls[] = $origin . $path;
             }
         }
 
-        $sitesService->setCurrentSite($originalSite);
+        return array_values(array_unique($urls));
+    }
 
-        return array_unique($urls);
+    private function extractOrigin(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! $scheme || ! $host) {
+            return null;
+        }
+
+        $origin = $scheme . '://' . $host;
+        $port = parse_url($url, PHP_URL_PORT);
+
+        if ($port) {
+            $origin .= ':' . $port;
+        }
+
+        return $origin;
     }
 
     private function registerEventListeners(): void
