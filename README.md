@@ -2,8 +2,6 @@
 
 A [Craft CMS](https://craftcms.com) module that purges CDN URLs when assets are replaced, renamed, moved, or deleted. Works with [Bunny CDN](https://bunny.net) or any other CDN that has a purge API.
 
-No dependency on Blitz or any other caching plugin.
-
 ## Requirements
 
 - Craft CMS 5.0+
