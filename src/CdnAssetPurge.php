@@ -1,6 +1,6 @@
 <?php
 
-namespace Noo\CraftBunnyPurge;
+namespace Noo\CraftCdnAssetPurge;
 
 use Craft;
 use craft\base\Element;
@@ -12,9 +12,9 @@ use yii\base\Event;
 use yii\base\Module;
 
 /**
- * @property BunnyPurgeService $purgeService
+ * @property CdnAssetPurgeService $purgeService
  */
-class BunnyPurge extends Module
+class CdnAssetPurge extends Module
 {
     private array $config;
 
@@ -23,21 +23,21 @@ class BunnyPurge extends Module
 
     public static function getInstance(): static
     {
-        return Craft::$app->getModule('bunny-purge');
+        return Craft::$app->getModule('cdn-asset-purge');
     }
 
     public function init(): void
     {
-        Craft::setAlias('@Noo/CraftBunnyPurge', __DIR__);
+        Craft::setAlias('@Noo/CraftCdnAssetPurge', __DIR__);
 
         parent::init();
 
         $this->config = array_merge(
             require dirname(__DIR__) . '/config.php',
-            Craft::$app->config->getConfigFromFile('bunny-purge'),
+            Craft::$app->config->getConfigFromFile('cdn-asset-purge'),
         );
 
-        $this->set('purgeService', new BunnyPurgeService(
+        $this->set('purgeService', new CdnAssetPurgeService(
             $this->config['apiUrl'],
             $this->config['apiKey'],
             $this->config['authType'],

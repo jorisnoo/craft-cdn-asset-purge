@@ -1,14 +1,13 @@
 {
-    "name": "jorisnoo/craft-bunny-purge",
-    "description": "Purge Bunny CDN URLs when Craft CMS assets are replaced.",
+    "name": "jorisnoo/craft-cdn-asset-purge",
+    "description": "Purge CDN URLs when Craft CMS assets are replaced, renamed, moved, or deleted.",
     "keywords": [
         "craftcms",
-        "bunny",
         "cdn",
         "purge",
         "assets"
     ],
-    "homepage": "https://github.com/jorisnoo/craft-bunny-purge",
+    "homepage": "https://github.com/jorisnoo/craft-cdn-asset-purge",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -20,8 +19,8 @@
         }
     ],
     "support": {
-        "source": "https://github.com/jorisnoo/craft-bunny-purge",
-        "issues": "https://github.com/jorisnoo/craft-bunny-purge/issues"
+        "source": "https://github.com/jorisnoo/craft-cdn-asset-purge",
+        "issues": "https://github.com/jorisnoo/craft-cdn-asset-purge/issues"
     },
     "require": {
         "php": "^8.2",
@@ -29,7 +28,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Noo\\CraftBunnyPurge\\": "src/"
+            "Noo\\CraftCdnAssetPurge\\": "src/"
         }
     },
     "config": {

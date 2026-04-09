@@ -1,6 +1,6 @@
-# Craft Bunny Purge
+# Craft CDN Asset Purge
 
-A [Craft CMS](https://craftcms.com) module that purges [Bunny CDN](https://bunny.net) URLs when assets are replaced. Works with any CDN that has a purge API.
+A [Craft CMS](https://craftcms.com) module that purges CDN URLs when assets are replaced, renamed, moved, or deleted. Works with [Bunny CDN](https://bunny.net) or any other CDN that has a purge API.
 
 No dependency on Blitz or any other caching plugin.
 
@@ -14,7 +14,7 @@ No dependency on Blitz or any other caching plugin.
 Install via Composer:
 
 ```bash
-composer require jorisnoo/craft-bunny-purge
+composer require jorisnoo/craft-cdn-asset-purge
 ```
 
 Register the module in `config/app.php`:
@@ -22,15 +22,15 @@ Register the module in `config/app.php`:
 ```php
 return [
     'modules' => [
-        'bunny-purge' => \Noo\CraftBunnyPurge\BunnyPurge::class,
+        'cdn-asset-purge' => \Noo\CraftCdnAssetPurge\CdnAssetPurge::class,
     ],
-    'bootstrap' => ['bunny-purge'],
+    'bootstrap' => ['cdn-asset-purge'],
 ];
 ```
 
 ## Configuration
 
-Create `config/bunny-purge.php`:
+Create `config/cdn-asset-purge.php`:
 
 ```php
 <?php
@@ -38,7 +38,7 @@ Create `config/bunny-purge.php`:
 use craft\helpers\App;
 
 return [
-    'apiKey' => App::env('BUNNY_API_KEY'),
+    'apiKey' => App::env('CDN_API_KEY'),
     'volumes' => ['images'],
 ];
 ```
@@ -65,7 +65,7 @@ return [
 
 ## How it works
 
-When an asset in a monitored volume is replaced, the module pushes a queue job that sends a purge request to the configured API endpoint. The purge happens asynchronously so it doesn't block the control panel.
+When an asset in a monitored volume is replaced, renamed, moved, or deleted, the module pushes a queue job that sends a purge request to the configured API endpoint. The purge happens asynchronously so it doesn't block the control panel.
 
 ## License
 

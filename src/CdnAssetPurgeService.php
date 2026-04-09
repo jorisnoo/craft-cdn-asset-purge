@@ -1,11 +1,11 @@
 <?php
 
-namespace Noo\CraftBunnyPurge;
+namespace Noo\CraftCdnAssetPurge;
 
 use Craft;
 use craft\helpers\App;
 
-class BunnyPurgeService
+class CdnAssetPurgeService
 {
     private const URL_BATCH_LIMIT = 100;
 
@@ -28,7 +28,7 @@ class BunnyPurgeService
         $apiKey = App::parseEnv($this->apiKey);
 
         if (empty($apiKey)) {
-            Craft::warning('Bunny CDN purge API key not configured.', __METHOD__);
+            Craft::warning('CDN purge API key not configured.', __METHOD__);
 
             return;
         }
@@ -49,7 +49,7 @@ class BunnyPurgeService
                     'json' => ['urls' => $batch],
                 ]);
             } catch (\Throwable $e) {
-                Craft::error("Bunny CDN purge request failed: {$e->getMessage()}", __METHOD__);
+                Craft::error("CDN purge request failed: {$e->getMessage()}", __METHOD__);
             }
         }
     }
