@@ -57,9 +57,9 @@ class CdnAssetPurge extends Module
 
     private function registerEventListeners(): void
     {
-        $volumes = $this->config['volumes'];
+        $filesystems = $this->config['filesystems'];
 
-        if (empty($volumes)) {
+        if (empty($filesystems)) {
             return;
         }
 
@@ -67,10 +67,10 @@ class CdnAssetPurge extends Module
         Event::on(
             Assets::class,
             Assets::EVENT_AFTER_REPLACE_ASSET,
-            function (ReplaceAssetEvent $event) use ($volumes) {
+            function (ReplaceAssetEvent $event) use ($filesystems) {
                 $asset = $event->asset;
 
-                if (! in_array($asset->getVolume()->handle, $volumes)) {
+                if (! in_array($asset->getVolume()->getFs()->handle, $filesystems)) {
                     return;
                 }
 
@@ -82,11 +82,11 @@ class CdnAssetPurge extends Module
         Event::on(
             Asset::class,
             Element::EVENT_BEFORE_SAVE,
-            function (ModelEvent $event) use ($volumes) {
+            function (ModelEvent $event) use ($filesystems) {
                 /** @var Asset $asset */
                 $asset = $event->sender;
 
-                if ($event->isNew || ! in_array($asset->getVolume()->handle, $volumes)) {
+                if ($event->isNew || ! in_array($asset->getVolume()->getFs()->handle, $filesystems)) {
                     return;
                 }
 
@@ -119,11 +119,11 @@ class CdnAssetPurge extends Module
         Event::on(
             Asset::class,
             Element::EVENT_BEFORE_DELETE,
-            function (ModelEvent $event) use ($volumes) {
+            function (ModelEvent $event) use ($filesystems) {
                 /** @var Asset $asset */
                 $asset = $event->sender;
 
-                if (! in_array($asset->getVolume()->handle, $volumes)) {
+                if (! in_array($asset->getVolume()->getFs()->handle, $filesystems)) {
                     return;
                 }
 

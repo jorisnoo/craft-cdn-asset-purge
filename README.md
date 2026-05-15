@@ -37,7 +37,7 @@ use craft\helpers\App;
 
 return [
     'apiKey' => App::env('CDN_API_KEY'),
-    'volumes' => ['images'],
+    'filesystems' => ['images'],
 ];
 ```
 
@@ -46,7 +46,7 @@ return [
 | `apiUrl` | The CDN purge API endpoint | `https://api.bunny.net/purge` |
 | `apiKey` | Your CDN API key | — |
 | `authType` | Auth header style: `access_key` or `bearer` | `access_key` |
-| `volumes` | Asset volume handles to monitor | `[]` |
+| `filesystems` | Filesystem handles to monitor | `[]` |
 
 ### Using a custom CDN
 
@@ -57,7 +57,7 @@ return [
     'apiUrl' => 'https://cdn.example.com/api/cache/purge',
     'apiKey' => App::env('CDN_API_KEY'),
     'authType' => 'bearer',
-    'volumes' => ['images'],
+    'filesystems' => ['images'],
 ];
 ```
 
