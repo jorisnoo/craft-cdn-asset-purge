@@ -2,6 +2,8 @@
     "name": "jorisnoo/craft-cdn-asset-purge",
     "description": "Purge CDN URLs when Craft CMS assets are replaced, renamed, moved, or deleted.",
     "keywords": [
+        "craft",
+        "cms",
         "craftcms",
         "cdn",
         "purge",
@@ -14,8 +16,7 @@
         {
             "name": "Joris Noordermeer",
             "email": "contact@noordermeer.ch",
-            "homepage": "https://github.com/jorisnoo",
-            "role": "Developer"
+            "homepage": "https://github.com/jorisnoo"
         }
     ],
     "support": {
