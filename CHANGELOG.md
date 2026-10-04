@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## [1.0.1](https://github.com/jorisnoo/craft-cdn-asset-purge/releases/tag/v1.0.1) (2026-05-15)
+## [1.0.1](https://github.com/jorisnoo/craft-cdn-asset-purge/releases/tag/1.0.1) (2026-05-15)
 
 ### ⚠ BREAKING CHANGES
 
@@ -24,7 +24,7 @@
 - add craft and cms keywords, remove author role ([3f4d89b](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/3f4d89b42849316db4d9b46c00a2104e593a5707))
 - rename bunny-purge to cdn-asset-purge ([17e0b17](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/17e0b177f1a520e307e6866c320e2b6fca6bced4))
 - register module alias on init ([18675c7](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/18675c7d3e0f5bb0e9455a19e25f272a4a20cd10))
-## [1.0.0](https://github.com/jorisnoo/craft-cdn-asset-purge/releases/tag/v1.0.0) (2026-05-12)
+## [1.0.0](https://github.com/jorisnoo/craft-cdn-asset-purge/releases/tag/1.0.0) (2026-05-12)
 
 ### ⚠ BREAKING CHANGES
 
