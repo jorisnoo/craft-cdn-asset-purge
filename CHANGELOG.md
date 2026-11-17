@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+
+- Purge requests are capped at 50 URLs and never mix exact and wildcard URLs; wildcard batches are capped at 15 and paced to Bunny's wildcard rate limit.
+- A rate-limited (429) purge is retried after `Retry-After` / `retry_after_seconds`, floored to the rate limit's refill window, instead of being dropped. 5xx responses, timeouts and connection errors are retried too.
+- Purge failures are no longer swallowed: a rejected request, a missing API key or running out of retries fails the queue job visibly. With no API key, the module logs a warning and queues nothing.
+- Purge requests time out after 10 seconds (5 seconds to connect).
+- A `null` `apiUrl` or `authType` (for example from an unset env var) falls back to the default instead of throwing a `TypeError` at bootstrap; an unknown `authType` logs a warning.
+- `composer validate` passes again (allow Craft's Composer plugins).
+
 ## [1.0.1](https://github.com/jorisnoo/craft-cdn-asset-purge/releases/tag/1.0.1) (2026-05-15)
 
 ### ⚠ BREAKING CHANGES

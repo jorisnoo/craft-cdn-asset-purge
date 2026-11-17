@@ -4,10 +4,17 @@ namespace Noo\CraftCdnAssetPurge;
 
 use Craft;
 use craft\helpers\App;
+use craft\helpers\Queue;
+use GuzzleHttp\Exception\GuzzleException;
 
 class CdnAssetPurgeService
 {
-    private const URL_BATCH_LIMIT = 100;
+    /** Total tries per batch before the purge fails visibly. */
+    public const MAX_ATTEMPTS = 10;
+
+    private const TIMEOUT_SECONDS = 10;
+
+    private const CONNECT_TIMEOUT_SECONDS = 5;
 
     private string $apiUrl;
 
@@ -22,36 +29,128 @@ class CdnAssetPurgeService
         $this->authType = $authType;
     }
 
-    /** @param string[] $urls */
-    public function purgeUrls(array $urls): void
+    public function hasApiKey(): bool
     {
+        return ! empty(App::parseEnv($this->apiKey));
+    }
+
+    /**
+     * Sends the first batch of URLs now and queues the rest, paced to the
+     * CDN's rate limits (see PurgeBatcher). A rate-limited (429), 5xx or
+     * connection failure queues the batch again with a delay. Any other
+     * failure, or running out of retries, throws.
+     *
+     * @param string[] $urls
+     * @param int $attempt Failed tries so far for the first batch
+     * @throws PurgeFailedException
+     */
+    public function purgeUrls(array $urls, int $attempt = 0): void
+    {
+        $batches = PurgeBatcher::batches($urls);
+
+        if ($batches === []) {
+            return;
+        }
+
         $apiKey = App::parseEnv($this->apiKey);
 
         if (empty($apiKey)) {
-            Craft::warning('CDN purge API key not configured.', __METHOD__);
-
-            return;
+            throw new PurgeFailedException('CDN purge API key not configured.');
         }
 
         $apiUrl = App::parseEnv($this->apiUrl);
 
-        $headers = array_merge(
-            ['Content-Type' => 'application/json'],
-            $this->authHeaders($apiKey),
-        );
-
-        $client = Craft::createGuzzleClient();
-
-        foreach (array_chunk($urls, self::URL_BATCH_LIMIT) as $batch) {
-            try {
-                $client->post($apiUrl, [
-                    'headers' => $headers,
-                    'json' => ['urls' => $batch],
-                ]);
-            } catch (\Throwable $e) {
-                Craft::error("CDN purge request failed: {$e->getMessage()}", __METHOD__);
-            }
+        if (empty($apiUrl)) {
+            throw new PurgeFailedException('CDN purge API URL not configured.');
         }
+
+        $batch = array_shift($batches);
+        $remaining = array_merge([], ...array_map(fn (PurgeBatch $b) => $b->urls, $batches));
+
+        $client = Craft::createGuzzleClient([
+            'timeout' => self::TIMEOUT_SECONDS,
+            'connect_timeout' => self::CONNECT_TIMEOUT_SECONDS,
+        ]);
+
+        try {
+            $response = $client->post($apiUrl, [
+                'headers' => array_merge(
+                    ['Content-Type' => 'application/json'],
+                    $this->authHeaders($apiKey),
+                ),
+                'json' => ['urls' => $batch->urls],
+                'http_errors' => false,
+            ]);
+        } catch (GuzzleException $e) {
+            $this->retry($batch, $remaining, $attempt, PurgeBatcher::retryDelay($batch, $attempt + 1), "request failed: {$e->getMessage()}");
+
+            return;
+        }
+
+        $status = $response->getStatusCode();
+
+        if ($status >= 200 && $status < 300) {
+            Craft::info(sprintf('CDN purge succeeded for %d %s URL(s).', count($batch->urls), $batch->type()), __METHOD__);
+
+            if ($remaining !== []) {
+                $this->queue($remaining, 0, $batch->pacingSeconds());
+            }
+
+            return;
+        }
+
+        if ($status === 429) {
+            $delay = PurgeBatcher::rateLimitDelay(
+                $batch,
+                $attempt + 1,
+                $response->getHeaderLine('Retry-After'),
+                (string) $response->getBody(),
+            );
+
+            $this->retry($batch, $remaining, $attempt, $delay, 'rate-limited (429)');
+
+            return;
+        }
+
+        if ($status >= 500) {
+            $this->retry($batch, $remaining, $attempt, PurgeBatcher::retryDelay($batch, $attempt + 1), "server error ({$status})");
+
+            return;
+        }
+
+        $body = mb_substr(trim((string) $response->getBody()), 0, 500);
+
+        throw new PurgeFailedException("CDN purge request was rejected with HTTP {$status}: {$body}");
+    }
+
+    /**
+     * Queues the failed batch (and the batches behind it) again after
+     * $delay seconds, or throws once it has used up its tries.
+     *
+     * @param list<string> $remaining
+     * @throws PurgeFailedException
+     */
+    private function retry(PurgeBatch $batch, array $remaining, int $attempt, int $delay, string $reason): void
+    {
+        $tries = $attempt + 1;
+        $count = count($batch->urls);
+
+        if ($tries >= self::MAX_ATTEMPTS) {
+            throw new PurgeFailedException("CDN purge of {$count} {$batch->type()} URL(s) {$reason}; giving up after {$tries} tries.");
+        }
+
+        Craft::warning("CDN purge of {$count} {$batch->type()} URL(s) {$reason}; retrying in {$delay}s (try {$tries} of " . self::MAX_ATTEMPTS . ').', __METHOD__);
+
+        $this->queue(array_merge($batch->urls, $remaining), $tries, $delay);
+    }
+
+    /** @param list<string> $urls */
+    private function queue(array $urls, int $attempt, int $delay): void
+    {
+        Queue::push(new PurgeAssetUrlJob([
+            'urls' => $urls,
+            'attempt' => $attempt,
+        ]), null, $delay);
     }
 
     /** @return array<string, string> */

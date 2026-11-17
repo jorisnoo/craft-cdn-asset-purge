@@ -32,15 +32,26 @@ class CdnAssetPurge extends Module
 
         parent::init();
 
+        $defaults = require dirname(__DIR__) . '/config.php';
+
         $this->config = array_merge(
-            require dirname(__DIR__) . '/config.php',
+            $defaults,
             Craft::$app->config->getConfigFromFile('cdn-asset-purge'),
         );
 
+        // Unset env vars come through as null; fall back to the defaults
+        // rather than throwing a TypeError from a bootstrapped module.
+        $authType = $this->config['authType'] ?? $defaults['authType'];
+
+        if (! in_array($authType, ['access_key', 'bearer'], true)) {
+            Craft::warning('Unknown CDN purge authType; falling back to access_key.', __METHOD__);
+            $authType = 'access_key';
+        }
+
         $this->set('purgeService', new CdnAssetPurgeService(
-            $this->config['apiUrl'],
-            $this->config['apiKey'],
-            $this->config['authType'],
+            $this->config['apiUrl'] ?? $defaults['apiUrl'],
+            $this->config['apiKey'] ?? null,
+            $authType,
         ));
 
         $this->registerEventListeners();
@@ -57,9 +68,15 @@ class CdnAssetPurge extends Module
 
     private function registerEventListeners(): void
     {
-        $filesystems = $this->config['filesystems'];
+        $filesystems = $this->config['filesystems'] ?? [];
 
         if (empty($filesystems)) {
+            return;
+        }
+
+        if (! $this->purgeService->hasApiKey()) {
+            Craft::warning('CDN asset purge is disabled: no API key configured.', __METHOD__);
+
             return;
         }
 
