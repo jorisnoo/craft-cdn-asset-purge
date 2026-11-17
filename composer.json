@@ -33,7 +33,11 @@
         }
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "craftcms/plugin-installer": true,
+            "yiisoft/yii2-composer": true
+        }
     },
     "minimum-stability": "dev",
     "prefer-stable": true
