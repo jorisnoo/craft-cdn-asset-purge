@@ -1,6 +1,6 @@
 # Craft CDN Asset Purge
 
-A [Craft CMS](https://craftcms.com) module that purges CDN URLs when assets are replaced, renamed, moved, or deleted. Works with [Bunny CDN](https://bunny.net) or any other CDN that has a purge API.
+A [Craft CMS](https://craftcms.com) module that purges stale asset and image transform URLs from [Bunny CDN](https://bunny.net) or a compatible purge endpoint.
 
 ## Requirements
 
@@ -46,11 +46,14 @@ return [
 | `apiUrl` | The CDN purge API endpoint | `https://api.bunny.net/purge` |
 | `apiKey` | Your CDN API key | — |
 | `authType` | Auth header style: `access_key` or `bearer` | `access_key` |
-| `filesystems` | Filesystem handles to monitor | `[]` |
+| `filesystems` | Filesystem handles to monitor; include the volume's transform filesystem if it is separate | `[]` |
+| `volumes` | Deprecated 1.0.0 option; matches volume handles, including their transform filesystems | `[]` |
+
+Release 1.0.1 stopped recognizing `volumes`. Volume matching works again, but when migrating to `filesystems`, use the actual **filesystem handles**, not necessarily the old volume handles. If both lists are empty, no purges are queued.
 
 ### Using a custom CDN
 
-Override the API URL and auth type to point at any purge endpoint:
+The endpoint must accept `POST` with a JSON body `{"urls": [...]}` and an `AccessKey` or `Authorization: Bearer` header. Folder renames require wildcard URL support.
 
 ```php
 return [
@@ -65,7 +68,11 @@ A setting that resolves to `null` (for example `App::env()` of an unset variable
 
 ## How it works
 
-When an asset in a monitored filesystem is replaced, renamed, moved, or deleted, the module pushes a queue job that sends a purge request (`POST` with a JSON body `{"urls": [...]}`) to the configured API endpoint. The purge happens asynchronously so it doesn't block the control panel.
+On asset replacement, rename, move or deletion, the module collects the original URL. It also collects generated URLs when Craft's built-in transformer deletes a rendition (including focal-point changes). Only public filesystems are eligible. A successful folder rename in the control panel purges the old asset and transform folder prefixes with `/*`.
+
+URLs are deduplicated and queued together at the end of the web or console request, or after each job in a long-running queue worker. Delete URLs are not queued on a vetoed delete. The queue push runs outside the asset save; a queue outage cannot roll back the editor's completed save. If the queue is unavailable at flush time, fix the queue and purge the affected URLs manually.
+
+The module uses the current site's URL; it does not enumerate other domains, aliases or custom URLs returned by third-party transform providers. A programmatic folder rename through Craft's service bypasses the control-panel action and has no Craft event: purge the old folder prefixes explicitly. Direct changes to storage outside Craft are not tracked.
 
 ### Rate limits, retries and failures
 

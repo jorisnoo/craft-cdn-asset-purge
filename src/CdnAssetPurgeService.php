@@ -147,10 +147,13 @@ class CdnAssetPurgeService
     /** @param list<string> $urls */
     private function queue(array $urls, int $attempt, int $delay): void
     {
-        Queue::push(new PurgeAssetUrlJob([
+        $id = Queue::push(new PurgeAssetUrlJob([
             'urls' => $urls,
             'attempt' => $attempt,
         ]), null, $delay);
+        if ($id === null) {
+            throw new PurgeFailedException('Queue declined the next CDN purge batch.');
+        }
     }
 
     /** @return array<string, string> */

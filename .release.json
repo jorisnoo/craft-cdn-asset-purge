@@ -7,6 +7,9 @@
       "composer",
       "validate",
       "--no-check-publish"
-    ]
+    ],
+    ["composer", "audit"],
+    ["vendor/bin/phpstan", "analyse", "--no-progress", "--memory-limit=512M"],
+    ["vendor/bin/pest"]
   ]
 }
