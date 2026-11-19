@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2026-11-19
+
+### Fixed
+
+- Use Bunny Core's documented single-URL query request by default, pacing subsequent jobs and retaining unattempted URLs on retry. Custom gateways keep their batched JSON requests. Configure the final purge endpoint directly rather than an HTTP redirect.
+
 ## [1.1.0] - 2026-11-19
 
 ### Added

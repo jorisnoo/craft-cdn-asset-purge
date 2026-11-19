@@ -6,6 +6,7 @@ use Craft;
 use craft\helpers\App;
 use craft\helpers\Queue;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Psr7\Uri;
 
 class CdnAssetPurgeService
 {
@@ -63,24 +64,38 @@ class CdnAssetPurgeService
         if (empty($apiUrl)) {
             throw new PurgeFailedException('CDN purge API URL not configured.');
         }
+        $endpoint = new Uri($apiUrl);
+        $native = $endpoint->getHost() === 'api.bunny.net';
+        if ($native && ($endpoint->getScheme() !== 'https' || rtrim($endpoint->getPath(), '/') !== '/purge')) {
+            throw new PurgeFailedException('The Bunny Core purge endpoint is https://api.bunny.net/purge.');
+        }
 
         $batch = array_shift($batches);
         $remaining = array_merge([], ...array_map(fn (PurgeBatch $b) => $b->urls, $batches));
+        if ($native) {
+            // The documented Core API accepts one URL, not the gateway JSON contract.
+            $remaining = array_merge(array_slice($batch->urls, 1), $remaining);
+            $batch = new PurgeBatch([$batch->urls[0]], $batch->wildcard);
+            // Encode the entire nested URL, including percent escapes in Craft's paths.
+            $endpoint = Uri::withQueryValue($endpoint, 'url', rawurlencode($batch->urls[0]));
+        }
 
         $client = Craft::createGuzzleClient([
             'timeout' => self::TIMEOUT_SECONDS,
             'connect_timeout' => self::CONNECT_TIMEOUT_SECONDS,
         ]);
 
+        $options = [
+            'headers' => $this->authHeaders($apiKey),
+            'http_errors' => false,
+            'allow_redirects' => false,
+        ];
+        if (!$native) {
+            $options['json'] = ['urls' => $batch->urls];
+        }
+
         try {
-            $response = $client->post($apiUrl, [
-                'headers' => array_merge(
-                    ['Content-Type' => 'application/json'],
-                    $this->authHeaders($apiKey),
-                ),
-                'json' => ['urls' => $batch->urls],
-                'http_errors' => false,
-            ]);
+            $response = $client->post($endpoint, $options);
         } catch (GuzzleException $e) {
             $this->retry($batch, $remaining, $attempt, PurgeBatcher::retryDelay($batch, $attempt + 1), "request failed: {$e->getMessage()}");
 
@@ -93,7 +108,9 @@ class CdnAssetPurgeService
             Craft::info(sprintf('CDN purge succeeded for %d %s URL(s).', count($batch->urls), $batch->type()), __METHOD__);
 
             if ($remaining !== []) {
-                $this->queue($remaining, 0, $batch->pacingSeconds());
+                // Queue delays are whole seconds. A native request consumes one token.
+                $delay = $native ? ($batch->wildcard ? 2 : 1) : $batch->pacingSeconds();
+                $this->queue($remaining, 0, $delay);
             }
 
             return;

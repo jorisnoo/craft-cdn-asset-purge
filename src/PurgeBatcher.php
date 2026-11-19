@@ -6,8 +6,8 @@ namespace Noo\CraftCdnAssetPurge;
  * Splits purge URLs into requests and works out retry delays, following
  * Bunny's purge rate limits.
  *
- * Bunny accepts up to 50 URLs per request and rate-limits purges with a
- * per-account token bucket per purge type, one token per URL. Exact URLs
+ * Compatible gateways accept up to 50 URLs per JSON request. Bunny's
+ * per-account token bucket is separate per purge type, one token per URL. Exact URLs
  * burst to ~120 tokens and refill at 5/sec. Wildcard URLs (containing `*` or
  * ending in `/`) use a separate bucket that bursts to ~20 and refills at
  * 0.5/sec. A request that mixes both types is charged to both buckets, so a
@@ -19,7 +19,7 @@ namespace Noo\CraftCdnAssetPurge;
  */
 final class PurgeBatcher
 {
-    /** Bunny's per-request maximum, and under the ~120 exact burst. */
+    /** Gateway batch limit, under the ~120 exact burst. */
     public const EXACT_BATCH_SIZE = 50;
 
     /** Under the ~20 wildcard burst. */

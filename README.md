@@ -51,9 +51,11 @@ return [
 
 Release 1.0.1 stopped recognizing `volumes`. Volume matching works again, but when migrating to `filesystems`, use the actual **filesystem handles**, not necessarily the old volume handles. If both lists are empty, no purges are queued.
 
+The default endpoint uses Bunny's documented [Purge URL](https://bunny.net/docs/api-reference/core/purge/purge-url): an HTTPS `POST` with one `url` query parameter and an `AccessKey` header. There is no need to change your default configuration.
+
 ### Using a custom CDN
 
-The endpoint must accept `POST` with a JSON body `{"urls": [...]}` and an `AccessKey` or `Authorization: Bearer` header. Folder renames require wildcard URL support.
+A custom gateway must accept `POST` with a JSON body `{"urls": [...]}` and an `AccessKey` or `Authorization: Bearer` header. Folder renames require wildcard URL support. Configure the final endpoint directly; requests do not follow redirects.
 
 ```php
 return [
@@ -78,8 +80,8 @@ The module uses the current site's URL; it does not enumerate other domains, ali
 
 Requests are shaped for Bunny's purge rate limits, which use a separate token bucket for exact URLs (burst ~120, refill 5/s) and wildcard URLs (containing `*` or ending in `/`; burst ~20, refill 0.5/s):
 
-- A request never mixes exact and wildcard URLs. Exact URLs go first, in batches of up to 50. Wildcard URLs go in batches of up to 15.
-- Each job sends one batch. The remaining URLs are queued as a new job, delayed 10 seconds after an exact batch or 30 seconds after a wildcard batch.
+- One event group may contain many URLs. Each queue job sends one HTTP request, exact URLs first, and queues any remainder. A request never mixes exact and wildcard URLs.
+- For Bunny Core, the next job is delayed one second after an exact URL or two seconds after a wildcard URL. Compatible custom gateways receive JSON batches of up to 50 exact or 15 wildcard URLs, delayed 10 and 30 seconds respectively between batches.
 - On `429 Too Many Requests` the batch is queued again after the `Retry-After` header (or the body's `retry_after_seconds`). The wait is capped at 5 minutes and never shorter than the refill window above, because Bunny's advertised wait can be too short. If no wait is given, it waits 60 seconds.
 - On a `5xx` response, a timeout or a connection error, the batch is queued again with a growing delay.
 - After 10 failed tries, or on any other error response (for example `401`), the job fails and shows as failed in the Queue Manager, where you can retry it. Failures are no longer only logged.
