@@ -1,9 +1,16 @@
 # Changelog
 
-## Unreleased
+## [1.1.0] - 2026-11-19
+
+### Added
+
+- Purge generated Craft transforms when invalidated, including focal-point changes. Monitor the transform filesystem too if the volume uses a separate one.
+- Purge the old asset and transform folder prefixes after a control-panel folder rename.
 
 ### Fixed
 
+- Bulk asset operations now deduplicate URLs in one queue job per request or worker job. Delete purges wait for a successful deletion, and a queue outage no longer interrupts the asset save transaction.
+- Restored the `volumes` option dropped in 1.0.1. It matches volume handles; migrate to `filesystems` using the corresponding filesystem handles.
 - Purge requests are capped at 50 URLs and never mix exact and wildcard URLs; wildcard batches are capped at 15 and paced to Bunny's wildcard rate limit.
 - A rate-limited (429) purge is retried after `Retry-After` / `retry_after_seconds`, floored to the rate limit's refill window, instead of being dropped. 5xx responses, timeouts and connection errors are retried too.
 - Purge failures are no longer swallowed: a rejected request, a missing API key or running out of retries fails the queue job visibly. With no API key, the module logs a warning and queues nothing.
@@ -20,7 +27,7 @@
 ### Features
 
 - purge asset URLs on rename, move, and deletion ([a5b4b6b](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/a5b4b6b1fe50f9ef2805dcf9f88321cef2b95211))
-- purge asset URLs across multiple sites ([99a533f](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/99a533fd784560be535876fcddc0bc7c9e7e8f46))
+- Uses the asset URL in the current site context; the earlier multi-site implementation was removed before release.
 
 ### Code Refactoring
 
@@ -42,7 +49,7 @@
 ### Features
 
 - purge asset URLs on rename, move, and deletion ([a5b4b6b](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/a5b4b6b1fe50f9ef2805dcf9f88321cef2b95211))
-- purge asset URLs across multiple sites ([99a533f](https://github.com/jorisnoo/craft-cdn-asset-purge/commit/99a533fd784560be535876fcddc0bc7c9e7e8f46))
+- Uses the asset URL in the current site context; the earlier multi-site implementation was removed before release.
 
 ### Code Refactoring
 

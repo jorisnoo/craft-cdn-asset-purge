@@ -12,6 +12,9 @@ Configured release checks:
 
 ```sh
 composer validate --no-check-publish
+composer audit
+vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+vendor/bin/pest
 ```
 
 Install the project’s normal dependencies first. The helper runs these checks when publishing; dry-run prints them without executing them. Run any additional checks needed for the changed behavior before committing.
