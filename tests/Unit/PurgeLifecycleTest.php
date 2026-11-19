@@ -38,7 +38,12 @@ beforeEach(function () {
         'guzzle' => ['handler' => $this->handler],
     });
     $this->jobs = [];
-    $this->queue = $this->getMockBuilder(Queue::class)->disableOriginalConstructor()->onlyMethods(['push'])->getMock();
+    $this->delays = [];
+    $this->queue = $this->getMockBuilder(Queue::class)->disableOriginalConstructor()->onlyMethods(['push', 'delay'])->getMock();
+    $this->queue->method('delay')->willReturnCallback(function ($seconds) {
+        $this->delays[] = $seconds;
+        return $this->queue;
+    });
     $this->queue->method('push')->willReturnCallback(function (PurgeAssetUrlJob $job) {
         $this->jobs[] = $job;
         return (string) count($this->jobs);
@@ -170,3 +175,27 @@ it('sends a bounded HTTP batch, requeues on 429 and fails on rejection', functio
         ->and($this->jobs)->toHaveCount(1)->and($this->jobs[0]->urls)->toBe($urls)->and($this->jobs[0]->attempt)->toBe(1);
     expect(fn () => $service->purgeUrls($urls))->toThrow(PurgeFailedException::class, 'HTTP 401');
 })->with([['bearer', 'Authorization', 'Bearer test'], ['access_key', 'AccessKey', 'test']]);
+
+it('sends one documented native purge and paces the untouched tail', function () {
+    $history = [];
+    $this->handler = HandlerStack::create(new MockHandler([new Response(200), new Response(429, ['Retry-After' => '45']), new Response(200)]));
+    $this->handler->push(Middleware::history($history));
+    $service = new CdnAssetPurgeService('https://api.bunny.net/purge?async=true', 'test', 'access_key');
+    $exact = 'https://cdn.example/sub/one%20two.jpg?v=a%2Fb&color=r+g';
+    $prefixes = ['https://cdn.example/docs/*', 'https://cdn.example/sub/*'];
+    $service->purgeUrls([...$prefixes, $exact, $exact]);
+    expect($this->jobs)->toHaveCount(1)->and($this->jobs[0]->urls)->toBe($prefixes)
+        ->and($this->jobs[0]->attempt)->toBe(0);
+    $service->purgeUrls($this->jobs[0]->urls);
+    expect($this->jobs[1]->urls)->toBe($prefixes)->and($this->jobs[1]->attempt)->toBe(1);
+    $service->purgeUrls($this->jobs[1]->urls, $this->jobs[1]->attempt);
+    expect($this->jobs[2]->urls)->toBe([$prefixes[1]])->and($this->jobs[2]->attempt)->toBe(0)
+        ->and($this->delays)->toBe([1, 45, 2]);
+    foreach ($history as $i => $transaction) {
+        $request = $transaction['request'];
+        parse_str($request->getUri()->getQuery(), $query);
+        expect($request->getMethod())->toBe('POST')->and($request->getUri()->getPath())->toBe('/purge')
+            ->and($request->getHeaderLine('AccessKey'))->toBe('test')->and((string) $request->getBody())->toBe('')
+            ->and($query)->toBe(['async' => 'true', 'url' => $i === 0 ? $exact : $prefixes[0]]);
+    }
+});
